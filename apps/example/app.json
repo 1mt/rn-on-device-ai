@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "On-Device AI Example",
+    "slug": "on-device-ai-example",
+    "version": "1.0.0",
+    "scheme": "ondeviceai",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "com.example.ondeviceai",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.example.ondeviceai"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "26.0"
+          }
+        }
+      ]
+    ]
+  }
+}
