@@ -5,11 +5,13 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 import expo.modules.kotlin.exception.CodedException
+import expo.modules.kotlin.Promise
 import androidx.core.os.bundleOf
 import kotlinx.coroutines.*
-import kotlinx.coroutines.tasks.await
 import com.google.mlkit.genai.common.FeatureStatus
+import com.google.mlkit.genai.common.DownloadCallback
 import com.google.mlkit.genai.common.DownloadStatus
+import com.google.mlkit.genai.common.GenAiException
 import com.google.mlkit.genai.prompt.*
 import com.google.mlkit.genai.summarization.*
 import com.google.mlkit.genai.rewriting.*
@@ -25,32 +27,45 @@ class OnDeviceAIModule : Module() {
 
         Events("onToken", "onComplete", "onError")
 
-        AsyncFunction("checkAvailability") Coroutine { ->
-            val model = getOrCreateModel()
-            val status = model.checkStatus().await()
-            mapOf(
-                "status" to when (status) {
-                    FeatureStatus.AVAILABLE -> "available"
-                    FeatureStatus.DOWNLOADING -> "downloading"
-                    FeatureStatus.DOWNLOADABLE -> "downloadable"
-                    else -> "unavailable"
-                },
-                "reason" to if (status == FeatureStatus.UNAVAILABLE)
-                    "deviceNotSupported" else null
-            )
-        }
-
-        AsyncFunction("downloadModel") Coroutine { ->
-            val model = getOrCreateModel()
-            var success = false
-            model.download().collect { status ->
-                when (status) {
-                    DownloadStatus.DownloadCompleted -> success = true
-                    is DownloadStatus.DownloadFailed -> throw status.e
-                    else -> {}
+        AsyncFunction("checkAvailability") { promise: Promise ->
+            scope.launch {
+                try {
+                    val model = getOrCreateModel()
+                    val status = model.checkStatus()
+                    val result = mapOf(
+                        "status" to when (status) {
+                            FeatureStatus.AVAILABLE -> "available"
+                            FeatureStatus.DOWNLOADING -> "downloading"
+                            FeatureStatus.DOWNLOADABLE -> "downloadable"
+                            else -> "unavailable"
+                        },
+                        "reason" to if (status == FeatureStatus.UNAVAILABLE)
+                            "deviceNotSupported" else null
+                    )
+                    promise.resolve(result)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("CHECK_AVAILABILITY_FAILED", e.message, e))
                 }
             }
-            success
+        }
+
+        AsyncFunction("downloadModel") { promise: Promise ->
+            scope.launch {
+                try {
+                    val model = getOrCreateModel()
+                    var success = false
+                    model.download().collect { status ->
+                        when (status) {
+                            DownloadStatus.DownloadCompleted -> success = true
+                            is DownloadStatus.DownloadFailed -> throw status.e
+                            else -> {}
+                        }
+                    }
+                    promise.resolve(success)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("DOWNLOAD_FAILED", e.message, e))
+                }
+            }
         }
 
         AsyncFunction("initSession") { options: SessionOptions? ->
@@ -59,16 +74,27 @@ class OnDeviceAIModule : Module() {
             getOrCreateModel()
         }
 
-        AsyncFunction("generate") Coroutine { prompt: String, options: GenerateOptions? ->
-            val model = getOrCreateModel()
-            val fullPrompt = buildPrompt(prompt)
-            val request = generateContentRequest(TextPart(fullPrompt)) {
-                temperature = (options?.temperature ?: 0.7).toFloat()
-                maxOutputTokens = options?.maxTokens ?: 256
+        AsyncFunction("generate") { prompt: String, options: GenerateOptions?, promise: Promise ->
+            scope.launch {
+                try {
+                    val model = getOrCreateModel()
+                    val fullPrompt = buildPrompt(prompt)
+                    val request = generateContentRequest(
+                        TextPart(fullPrompt)
+                    ) {
+                        temperature = (options?.temperature ?: 0.7).toFloat()
+                        maxOutputTokens = options?.maxTokens ?: 256
+                    }
+                    val response = model.generateContent(request)
+                    val text = response.candidates.firstOrNull()?.text
+                        ?: throw GenerationException()
+                    promise.resolve(text)
+                } catch (e: GenerationException) {
+                    promise.reject(e)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("GENERATION_FAILED", e.message, e))
+                }
             }
-            model.generateContent(request)
-                .candidates.firstOrNull()?.text
-                ?: throw GenerationException()
         }
 
         AsyncFunction("startStreaming") { prompt: String, options: GenerateOptions? ->
@@ -110,72 +136,119 @@ class OnDeviceAIModule : Module() {
             streamingJob?.cancel()
         }
 
-        AsyncFunction("summarize") Coroutine { text: String, options: SummarizeOptions? ->
-            val context = appContext.reactContext
-                ?: throw ContextException()
+        AsyncFunction("summarize") { text: String, options: SummarizeOptions?, promise: Promise ->
+            scope.launch {
+                try {
+                    val context = appContext.reactContext
+                        ?: throw ContextException()
 
-            val outputType = when (options?.style?.lowercase()) {
-                "bullets" -> SummarizerOptions.OutputType.THREE_BULLETS
-                "headline" -> SummarizerOptions.OutputType.HEADLINE
-                else -> SummarizerOptions.OutputType.ONE_BULLET
-            }
-
-            val summarizerOptions = SummarizerOptions.builder(context)
-                .setInputType(SummarizerOptions.InputType.ARTICLE)
-                .setOutputType(outputType)
-                .setLanguage(SummarizerOptions.Language.ENGLISH)
-                .build()
-
-            val summarizer = Summarization.getClient(summarizerOptions)
-
-            // Check and download if needed
-            val status = summarizer.checkStatus().await()
-            if (status == FeatureStatus.DOWNLOADABLE) {
-                summarizer.download().collect { downloadStatus ->
-                    if (downloadStatus is DownloadStatus.DownloadFailed) {
-                        throw downloadStatus.e
+                    val outputType = when (options?.style?.lowercase()) {
+                        "bullets", "three_bullets" -> SummarizerOptions.OutputType.THREE_BULLETS
+                        "one_bullet" -> SummarizerOptions.OutputType.ONE_BULLET
+                        else -> SummarizerOptions.OutputType.ONE_BULLET
                     }
+
+                    val summarizerOptions = SummarizerOptions.builder(context)
+                        .setInputType(SummarizerOptions.InputType.ARTICLE)
+                        .setOutputType(outputType)
+                        .setLanguage(SummarizerOptions.Language.ENGLISH)
+                        .build()
+
+                    val summarizer = Summarization.getClient(summarizerOptions)
+
+                    // Check and download if needed (ListenableFuture.get() blocks, OK on IO dispatcher)
+                    val status = withContext(Dispatchers.IO) {
+                        summarizer.checkFeatureStatus().get()
+                    }
+                    if (status == FeatureStatus.DOWNLOADABLE) {
+                        val downloadDeferred = CompletableDeferred<Boolean>()
+                        summarizer.downloadFeature(object : DownloadCallback {
+                            override fun onDownloadCompleted() {
+                                downloadDeferred.complete(true)
+                            }
+                            override fun onDownloadFailed(e: GenAiException) {
+                                downloadDeferred.completeExceptionally(e)
+                            }
+                            override fun onDownloadProgress(totalBytesDownloaded: Long) {}
+                            override fun onDownloadStarted(bytesToDownload: Long) {}
+                        })
+                        downloadDeferred.await()
+                    }
+
+                    val request = SummarizationRequest.builder(text).build()
+                    val result = withContext(Dispatchers.IO) {
+                        summarizer.runInference(request).get()
+                    }
+                    summarizer.close()
+
+                    val summary = result.getSummary() ?: throw SummarizationException()
+                    promise.resolve(summary)
+                } catch (e: SummarizationException) {
+                    promise.reject(e)
+                } catch (e: ContextException) {
+                    promise.reject(e)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("SUMMARIZATION_FAILED", e.message, e))
                 }
             }
-
-            val request = SummarizationRequest.builder(text).build()
-            val result = summarizer.runInference(request).await()
-            summarizer.close()
-            result.summary ?: throw SummarizationException()
         }
 
-        AsyncFunction("rewrite") Coroutine { text: String, style: String ->
-            val context = appContext.reactContext
-                ?: throw ContextException()
+        AsyncFunction("rewrite") { text: String, style: String, promise: Promise ->
+            scope.launch {
+                try {
+                    val context = appContext.reactContext
+                        ?: throw ContextException()
 
-            val outputType = when (style.lowercase()) {
-                "professional" -> RewriterOptions.OutputType.PROFESSIONAL
-                "friendly" -> RewriterOptions.OutputType.FRIENDLY
-                "shorter" -> RewriterOptions.OutputType.SHORTEN
-                "longer" -> RewriterOptions.OutputType.ELABORATE
-                else -> RewriterOptions.OutputType.REPHRASE
-            }
-
-            val options = RewriterOptions.builder(context)
-                .setOutputType(outputType)
-                .build()
-
-            val rewriter = Rewriting.getClient(options)
-
-            // Check and download if needed
-            val status = rewriter.checkStatus().await()
-            if (status == FeatureStatus.DOWNLOADABLE) {
-                rewriter.download().collect { downloadStatus ->
-                    if (downloadStatus is DownloadStatus.DownloadFailed) {
-                        throw downloadStatus.e
+                    val outputType = when (style.lowercase()) {
+                        "professional" -> RewriterOptions.OutputType.PROFESSIONAL
+                        "friendly" -> RewriterOptions.OutputType.FRIENDLY
+                        "shorter", "shorten" -> RewriterOptions.OutputType.SHORTEN
+                        "longer", "elaborate" -> RewriterOptions.OutputType.ELABORATE
+                        "emojify" -> RewriterOptions.OutputType.EMOJIFY
+                        else -> RewriterOptions.OutputType.REPHRASE
                     }
+
+                    val rewriterOptions = RewriterOptions.builder(context)
+                        .setOutputType(outputType)
+                        .setLanguage(RewriterOptions.Language.ENGLISH)
+                        .build()
+
+                    val rewriter = Rewriting.getClient(rewriterOptions)
+
+                    // Check and download if needed (ListenableFuture.get() blocks, OK on IO dispatcher)
+                    val status = withContext(Dispatchers.IO) {
+                        rewriter.checkFeatureStatus().get()
+                    }
+                    if (status == FeatureStatus.DOWNLOADABLE) {
+                        val downloadDeferred = CompletableDeferred<Boolean>()
+                        rewriter.downloadFeature(object : DownloadCallback {
+                            override fun onDownloadCompleted() {
+                                downloadDeferred.complete(true)
+                            }
+                            override fun onDownloadFailed(e: GenAiException) {
+                                downloadDeferred.completeExceptionally(e)
+                            }
+                            override fun onDownloadProgress(totalBytesDownloaded: Long) {}
+                            override fun onDownloadStarted(bytesToDownload: Long) {}
+                        })
+                        downloadDeferred.await()
+                    }
+
+                    val request = RewritingRequest.builder(text).build()
+                    val result = withContext(Dispatchers.IO) {
+                        rewriter.runInference(request).get()
+                    }
+                    rewriter.close()
+
+                    // Access rewritten text via getResults().firstOrNull()?.text
+                    val rewrittenText = result.getResults().firstOrNull()?.text ?: text
+                    promise.resolve(rewrittenText)
+                } catch (e: ContextException) {
+                    promise.reject(e)
+                } catch (e: Exception) {
+                    promise.reject(CodedException("REWRITE_FAILED", e.message, e))
                 }
             }
-
-            val request = RewritingRequest.builder(text).build()
-            val result = rewriter.runInference(request).await()
-            rewriter.close()
-            result.rewrittenTexts.firstOrNull() ?: text
         }
 
         Function("clearSession") {
@@ -217,16 +290,19 @@ class SummarizeOptions : Record {
 }
 
 class GenerationException : CodedException(
-    code = "GENERATION_FAILED",
-    message = "Failed to generate content"
+    "GENERATION_FAILED",
+    "Failed to generate content",
+    null
 )
 
 class SummarizationException : CodedException(
-    code = "SUMMARIZATION_FAILED",
-    message = "Failed to summarize content"
+    "SUMMARIZATION_FAILED",
+    "Failed to summarize content",
+    null
 )
 
 class ContextException : CodedException(
-    code = "CONTEXT_UNAVAILABLE",
-    message = "React context is not available"
+    "CONTEXT_UNAVAILABLE",
+    "React context is not available",
+    null
 )
