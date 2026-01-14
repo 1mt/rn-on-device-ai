@@ -152,6 +152,12 @@ expo-on-device-ai/
 └── turbo.json
 ```
 
+## Video Example on iPhone
+
+
+https://github.com/user-attachments/assets/2f6a8697-4d9c-4372-90c5-7620809c0bd1
+
+
 ## How it works
 
 **iOS** uses the `FoundationModels` framework from iOS 26 - a ~3B parameter LLM with a 4K token context window.
