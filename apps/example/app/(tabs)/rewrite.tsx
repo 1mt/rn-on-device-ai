@@ -6,7 +6,7 @@ import {
   Text,
   TouchableOpacity,
 } from 'react-native';
-import { useOnDeviceAI, RewriteStyle } from '@repo/expo-on-device-ai';
+import { useOnDeviceAI, RewriteStyle } from '@1mt/expo-on-device-ai';
 import { AIStatusBanner } from '../../components/AIStatusBanner';
 import { TextInputCard } from '../../components/TextInputCard';
 import { ResultCard } from '../../components/ResultCard';

@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { AlertCircle, Download, Loader } from 'lucide-react-native';
-import { ModelStatus, downloadModel } from '@repo/expo-on-device-ai';
+import { ModelStatus, downloadModel } from '@1mt/expo-on-device-ai';
 
 type Props = {
   status: ModelStatus | null;

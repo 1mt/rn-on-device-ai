@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.28.4",
-    "@repo/expo-on-device-ai": "*",
+    "@1mt/expo-on-device-ai": "*",
     "expo": "~54.0.0",
     "expo-build-properties": "~1.0.10",
     "expo-clipboard": "~8.0.0",

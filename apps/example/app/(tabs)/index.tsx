@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Text,
 } from 'react-native';
-import { useOnDeviceAI } from '@repo/expo-on-device-ai';
+import { useOnDeviceAI } from '@1mt/expo-on-device-ai';
 import { AIStatusBanner } from '../../components/AIStatusBanner';
 import { ChatMessage } from '../../components/ChatMessage';
 import { ChatInput } from '../../components/ChatInput';

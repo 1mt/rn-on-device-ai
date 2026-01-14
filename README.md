@@ -20,7 +20,31 @@ Run AI models locally on iOS and Android devices with a simple React Native API.
 - Pixel 9+, Galaxy S25+, Xiaomi 15+, OnePlus 13+
 - Needs Google Play Services and a locked bootloader
 
-## Quick Start
+## Installation
+
+### From GitHub Packages
+
+1. Create or update `.npmrc` in your project root:
+
+```
+@1mt:registry=https://npm.pkg.github.com
+```
+
+2. Authenticate with GitHub Packages (use a PAT with `read:packages` scope):
+
+```bash
+npm login --registry=https://npm.pkg.github.com
+```
+
+3. Install the package:
+
+```bash
+npm install @1mt/expo-on-device-ai
+# or
+bun add @1mt/expo-on-device-ai
+```
+
+## Development
 
 ```bash
 # Clone and install
@@ -55,7 +79,7 @@ npx expo run:android --device
 ### Basic Chat
 
 ```typescript
-import { useOnDeviceAI } from '@repo/expo-on-device-ai';
+import { useOnDeviceAI } from '@1mt/expo-on-device-ai';
 
 function ChatScreen() {
   const {
@@ -104,7 +128,7 @@ import {
   generate,
   startStreaming,
   addTokenListener,
-} from '@repo/expo-on-device-ai';
+} from '@1mt/expo-on-device-ai';
 
 const { status } = await checkAvailability();
 

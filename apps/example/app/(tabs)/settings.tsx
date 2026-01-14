@@ -7,7 +7,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useOnDeviceAI, ModelStatus } from '@repo/expo-on-device-ai';
+import { useOnDeviceAI, ModelStatus } from '@1mt/expo-on-device-ai';
 import {
   CheckCircle,
   XCircle,

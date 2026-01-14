@@ -1,13 +1,47 @@
 {
-  "name": "@repo/expo-on-device-ai",
-  "version": "1.0.0",
+  "name": "@1mt/expo-on-device-ai",
+  "version": "0.1.0",
+  "description": "Expo module for on-device AI using Apple Foundation Models (iOS) and Google ML Kit GenAI with Gemini Nano (Android)",
   "main": "build/index.js",
   "types": "build/index.d.ts",
+  "license": "MIT",
+  "author": "1mt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/1mt/rn-on-device-ai.git",
+    "directory": "packages/expo-on-device-ai"
+  },
+  "bugs": {
+    "url": "https://github.com/1mt/rn-on-device-ai/issues"
+  },
+  "homepage": "https://github.com/1mt/rn-on-device-ai#readme",
+  "keywords": [
+    "expo",
+    "react-native",
+    "on-device-ai",
+    "apple-intelligence",
+    "foundation-models",
+    "gemini-nano",
+    "ml-kit",
+    "ai",
+    "llm"
+  ],
+  "files": [
+    "build",
+    "src",
+    "ios",
+    "android",
+    "expo-module.config.json"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "build": "expo-module build",
     "clean": "expo-module clean",
     "lint": "expo-module lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "expo-module build"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

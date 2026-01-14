@@ -13,7 +13,7 @@
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean",
     "dev:example": "turbo run dev --filter=example",
-    "build:module": "turbo run build --filter=@repo/expo-on-device-ai",
+    "build:module": "turbo run build --filter=@1mt/expo-on-device-ai",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
