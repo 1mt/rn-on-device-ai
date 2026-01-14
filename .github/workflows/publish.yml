@@ -4,11 +4,6 @@ on:
   release:
     types: [created]
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to publish (leave empty to use package.json version)'
-        required: false
-        type: string
 
 jobs:
   build:
@@ -29,12 +24,12 @@ jobs:
       - name: Run typecheck
         run: bun run --filter=@1mt/expo-on-device-ai typecheck
 
-  publish-gpr:
+  publish:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      packages: write
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -45,8 +40,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@1mt'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: bun install
@@ -54,8 +48,8 @@ jobs:
       - name: Build package
         run: bun run build:module
 
-      - name: Publish to GitHub Packages
+      - name: Publish to npm
         working-directory: packages/expo-on-device-ai
-        run: npm publish
+        run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
