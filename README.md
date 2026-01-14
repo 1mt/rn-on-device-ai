@@ -23,7 +23,7 @@ Run AI models locally on iOS and Android devices with a simple React Native API.
 ## Installation
 
 ```bash
-npm install @1mt/expo-on-device-ai
+npm i @1mt/expo-on-device-ai
 ```
 
 ## Development

@@ -1,0 +1,11 @@
+# Build artifacts
+android/build/
+android/.gradle/
+ios/build/
+*.xcworkspace
+*.xcodeproj
+
+# Development files
+tsconfig.json
+.eslintrc*
+.prettierrc*
